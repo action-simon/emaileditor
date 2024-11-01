@@ -1,15 +1,17 @@
 'use client';
 
-import { DragDropContext, Draggable, DropResult, Droppable } from '@hello-pangea/dnd';
 import React, { useState } from 'react';
 
-import { EmailEditor } from '@/components/EmailEditor';
-import { RightSidebar } from '@/components/RightSidebar';
 import { ctaConfig } from '@/components/EmailCta';
+import { EmailEditor } from '@/components/EmailEditor';
 import { footerConfig } from '@/components/EmailFooter';
 import { headerConfig } from '@/components/EmailHeader';
 import { imageConfig } from '@/components/EmailImage';
 import { textConfig } from '@/components/EmailText';
+import { RightSidebar } from '@/components/RightSidebar';
+import ThemeSwitch from '@/components/ThemeSwitch';
+import { Button } from '@/components/ui/button';
+import { DragDropContext, Draggable, DropResult, Droppable } from '@hello-pangea/dnd';
 
 const availableComponents = [
     { id: 'Header', name: 'Header' },
@@ -23,6 +25,21 @@ export default function Home() {
     const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
     const [emailContent, setEmailContent] = useState<{ id: string; type: string; [key: string]: any }[]>([]);
 
+    const handleLoadTemplate = () => {
+        const savedTemplate = localStorage.getItem('emailTemplate');
+        if (savedTemplate) {
+            setEmailContent(JSON.parse(savedTemplate));
+        } else {
+            console.log('No template found in local storage.');
+        }
+    };
+
+    const handleSaveTemplate = () => {
+        const templateToSave = emailContent;
+        console.log('Template saved:', templateToSave);
+        localStorage.setItem('emailTemplate', JSON.stringify(templateToSave));
+    };
+
     const handleDragEnd = (result: DropResult) => {
         if (!result.destination) return;
 
@@ -31,36 +48,20 @@ export default function Home() {
         if (source.droppableId === 'left-sidebar' && destination.droppableId === 'email-editor') {
             const componentType = result.draggableId;
 
+            const configMap: { [key: string]: any } = {
+                Header: headerConfig,
+                Text: textConfig,
+                Footer: footerConfig,
+                Image: imageConfig,
+                CTA: ctaConfig
+            };
+
             const newComponent = {
                 id: Date.now().toString(),
                 type: componentType,
-                ...(componentType === 'Header'
-                    ? {
-                          companyName: headerConfig.editableFields[0].default,
-                          tagline: headerConfig.editableFields[1].default
-                      }
-                    : {}),
-                ...(componentType === 'Text'
-                    ? { title: textConfig.editableFields[0].default, content: textConfig.editableFields[1].default }
-                    : {}),
-                ...(componentType === 'Footer'
-                    ? {
-                          copyright: footerConfig.editableFields[0].default,
-                          contactInfo: footerConfig.editableFields[1].default
-                      }
-                    : {}),
-                ...(componentType === 'Image'
-                    ? { url: imageConfig.editableFields[0].default, alt: imageConfig.editableFields[1].default }
-                    : {}),
-                ...(componentType === 'CTA'
-                    ? {
-                          imageSrc: ctaConfig.editableFields[0].default,
-                          heading: ctaConfig.editableFields[1].default,
-                          text: ctaConfig.editableFields[2].default,
-                          buttonText: ctaConfig.editableFields[3].default,
-                          buttonLink: ctaConfig.editableFields[4].default
-                      }
-                    : {})
+                ...Object.fromEntries(
+                    configMap[componentType]?.editableFields.map((field: any) => [field.name, field.default]) || []
+                )
             };
 
             setEmailContent((prev) => [...prev, newComponent]);
@@ -72,38 +73,98 @@ export default function Home() {
         }
     };
 
+    const handleRemoveComponent = (id: string) => {
+        setEmailContent((prev) => prev.filter((component) => component.id !== id));
+    };
+
+    const handleAddComponent = (componentType: string) => {
+        const configMap: { [key: string]: any } = {
+            Header: headerConfig,
+            Text: textConfig,
+            Footer: footerConfig,
+            Image: imageConfig,
+            CTA: ctaConfig
+        };
+
+        const newComponent = {
+            id: Date.now().toString(),
+            type: componentType,
+            ...Object.fromEntries(
+                configMap[componentType]?.editableFields.map((field: any) => [field.name, field.default]) || []
+            )
+        };
+
+        setEmailContent((prev) => [...prev, newComponent]);
+    };
+
     return (
         <DragDropContext onDragEnd={handleDragEnd}>
-            <div className='grid grid-cols-4 gap-4'>
-                <Droppable droppableId='left-sidebar'>
-                    {(provided) => (
-                        <div ref={provided.innerRef} {...provided.droppableProps} className='h-screen bg-gray-100 p-4'>
-                            <h2 className='mb-4 text-lg font-bold'>Components</h2>
-                            {availableComponents.map((component) => (
-                                <Draggable key={component.id} draggableId={component.id} index={0}>
-                                    {(provided) => (
-                                        <div
-                                            ref={provided.innerRef}
-                                            {...provided.draggableProps}
-                                            {...provided.dragHandleProps}
-                                            className='mb-2 cursor-pointer rounded border bg-white p-2 hover:bg-gray-200'>
-                                            {component.name}
-                                        </div>
-                                    )}
-                                </Draggable>
-                            ))}
-                            {provided.placeholder}
-                            <div className='mt-8 flex flex-col items-center justify-center gap-2'>
-                                <button className='w-full rounded-lg bg-white p-2 transition hover:bg-gray-50'>
-                                    Load Template
-                                </button>
-                                <button className='w-full rounded-lg bg-white p-2 transition hover:bg-gray-50'>
-                                    Save Template
-                                </button>
+            <div className='grid h-full grid-cols-4 gap-4'>
+                <div className='h-screen bg-gray-100 p-4'>
+                    <h2 className='mb-4 text-lg font-bold'>Components</h2>
+                    <Droppable droppableId='left-sidebar'>
+                        {(provided) => (
+                            <div ref={provided.innerRef} {...provided.droppableProps}>
+                                {availableComponents.map((component, index) => (
+                                    <Draggable key={component.id} draggableId={component.id} index={index}>
+                                        {(provided) => (
+                                            <div
+                                                ref={provided.innerRef}
+                                                {...provided.draggableProps}
+                                                {...provided.dragHandleProps}
+                                                className='mb-2 cursor-pointer rounded border bg-white p-2 hover:bg-gray-200'>
+                                                {component.name}
+                                            </div>
+                                        )}
+                                    </Draggable>
+                                ))}
+                                {provided.placeholder}
                             </div>
-                        </div>
-                    )}
-                </Droppable>
+                        )}
+                    </Droppable>
+                    <div className='mt-8 flex flex-col items-center justify-center gap-2'>
+                        <Button variant={'outline'} onClick={handleLoadTemplate}>
+                            Load Template
+                        </Button>
+
+                        <Button variant={'outline'} onClick={handleSaveTemplate}>
+                            Save Template
+                        </Button>
+                    </div>
+                    <ThemeSwitch />
+                    <h2 className='mb-4 mt-8 text-lg font-bold'>Email Structure</h2>
+                    <Droppable droppableId='email-editor'>
+                        {(provided) => (
+                            <div ref={provided.innerRef} {...provided.droppableProps} className='h-full p-4'>
+                                {emailContent.map((component, index) => (
+                                    <Draggable key={component.id} draggableId={component.id} index={index}>
+                                        {(provided) => (
+                                            <div
+                                                ref={provided.innerRef}
+                                                {...provided.draggableProps}
+                                                {...provided.dragHandleProps}
+                                                className='mb-2 rounded border bg-white p-4'>
+                                                <div className='flex justify-between'>
+                                                    <span
+                                                        className='cursor-pointer'
+                                                        onClick={() => setSelectedComponentId(component.id)}>
+                                                        {component.type}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => handleRemoveComponent(component.id)}
+                                                        className='ml-2 text-red-500'>
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </Draggable>
+                                ))}
+                                {provided.placeholder}
+                            </div>
+                        )}
+                    </Droppable>
+                </div>
 
                 <div className='col-span-2'>
                     <EmailEditor emailContent={emailContent} setSelectedComponentId={setSelectedComponentId} />
